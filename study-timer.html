@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Study Timer</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#f6d365">
+  <style>
+    /* ===== Variables & Reset ===== */
+    :root{
+      --bg-1: #FFDEE9;
+      --bg-2: #B5FFFC;
+      --card: rgba(255,255,255,0.9);
+      --muted: rgba(0,0,0,0.55);
+      --accent-1: #36d1dc;
+      --accent-2: #5b86e5;
+      --action: linear-gradient(90deg,#ff6a00,#ee0979);
+    }
+    *{box-sizing:border-box}
+    body {
+      font-family: 'Poppins', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      background: radial-gradient(1200px 600px at 10% 10%, rgba(88,216,255,0.12), transparent),
+                  linear-gradient(135deg,var(--bg-1),var(--bg-2));
+      color: #222;
+      margin: 0; padding: 24px;
+      display: flex; align-items: center; justify-content: center; min-height: 100vh;
+    }
+
+    /* Card wrapper for focused content */
+    .card{
+      width: min(920px, 96%);
+      max-width: 920px;
+      background: var(--card);
+      border-radius: 18px;
+      padding: 28px 36px;
+      box-shadow: 0 12px 40px rgba(8,18,30,0.12);
+      display: flex; flex-direction: column; align-items: center;
+      gap: 8px;
+    }
+
+    h1 { font-size: 48px; margin: 0; color: #0b1b24; }
+    .help-text{ font-size: 16px; color: var(--muted); margin-bottom: 6px }
+
+    .buttons-container{ margin: 12px 0; display:flex; gap: 10px; flex-wrap:wrap; justify-content:center }
+
+    button{
+      padding: 10px 22px; border-radius: 999px; border: none; cursor: pointer; font-weight: 700;
+      transition: transform .12s ease, box-shadow .12s ease, opacity .12s ease; background: #fff; color:#123;
+      box-shadow: 0 6px 18px rgba(8,18,30,0.06);
+    }
+    button:hover{ transform: translateY(-3px); }
+    button.selected{ background: linear-gradient(90deg,var(--accent-1),var(--accent-2)); color: #fff; box-shadow: 0 12px 30px rgba(88,133,255,0.14) }
+
+    /* Timer */
+    .category-label{ font-size:18px; color:var(--muted); margin-top:6px }
+    #timer{ font-size:96px; font-weight:800; color:#062027; margin: 18px 0 8px; padding: 14px 24px; border-radius:14px; background: linear-gradient(180deg, rgba(255,255,255,0.6), rgba(240,255,255,0.6)); box-shadow: inset 0 -6px 18px rgba(0,0,0,0.03) }
+
+    .progress-bar-container{ width:80%; height:14px; background: rgba(2,18,21,0.06); border-radius:999px; overflow:hidden }
+    .progress-bar{ height:100%; width:100%; background: linear-gradient(90deg,var(--accent-1),var(--accent-2)); transition: width 1s linear }
+
+    #finish-message{ font-size:34px; color:#d62b2b; display:none; margin-top:18px; font-weight:800 }
+
+    .control-buttons{ margin-top:18px; display:flex; gap:12px; justify-content:center }
+    .control-buttons button{ padding:10px 18px; border-radius:12px; font-size:16px }
+    #start-btn{ background: linear-gradient(90deg,#3bb37e,#2b7a78); color:#fff }
+    #pause-btn{ background: linear-gradient(90deg,#f2b632,#ff7a59); color:#fff }
+    #reset-btn{ background: linear-gradient(90deg,#9aa8ff,#6b6bff); color:#fff }
+
+    @media (max-width:720px){ #timer{ font-size:64px; padding:10px 16px } .progress-bar-container{ width:92% } }
+  </style>
+</head>
+<body>
+
+  <h1>Study Timer</h1>
+  <div class="help-text">Pick a category, then start the timer.</div>
+
+  <!-- Category Buttons -->
+  <div class="buttons-container" id="category-buttons">
+    <button data-category="Maths" class="selected">Maths</button>
+    <button data-category="English">English</button>
+    <button data-category="Science">Science</button>
+    <button data-category="History">History</button>
+    <button data-category="Other">Other</button>
+  </div>
+
+  <div class="category-label" id="current-category">Current category: Maths</div>
+
+  <!-- Timer Display -->
+  <div id="timer">25:00</div>
+
+  <div class="progress-bar-container">
+    <div class="progress-bar" id="progress-bar"></div>
+  </div>
+
+  <!-- Timer Type Buttons -->
+  <div class="buttons-container" id="timer-type-buttons">
+    <button data-time="1500" class="selected">Work</button>
+    <button data-time="300">Short break</button>
+    <button data-time="900">Long break</button>
+  </div>
+
+  <!-- Control Buttons -->
+  <div class="control-buttons">
+    <button id="start-btn">Start</button>
+    <button id="pause-btn">Pause</button>
+    <button id="reset-btn">Reset</button>
+  </div>
+
+  <!-- Finish Message -->
+  <div id="finish-message">Time’s up!</div>
+
+  <script>
+    // ===== Categories =====
+    const categoryButtons = document.querySelectorAll('#category-buttons button');
+    const currentCategoryLabel = document.getElementById('current-category');
+    let currentCategory = 'Maths';
+
+    // ===== Timer Types =====
+    const timerTypeButtons = document.querySelectorAll('#timer-type-buttons button');
+    let timerTypeTime = 1500; // Default 25 min
+    let timerRunning = false;
+    let timerInterval;
+    let timeLeft = timerTypeTime;
+    let endTime = null; // timestamp in ms when timer should end
+
+    const timerDisplay = document.getElementById('timer');
+    const progressBar = document.getElementById('progress-bar');
+    const finishMessage = document.getElementById('finish-message');
+
+    // ----- Persistence -----
+    const STORAGE_KEY = 'studyTimerState_v1';
+
+    function saveState() {
+      const state = {
+        currentCategory,
+        timerTypeTime,
+        timeLeft,
+        timerRunning,
+        endTime
+      };
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { /* ignore */ }
+    }
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return false;
+        const state = JSON.parse(raw);
+        if (state.currentCategory) {
+          currentCategory = state.currentCategory;
+          currentCategoryLabel.textContent = `Current category: ${currentCategory}`;
+          categoryButtons.forEach(b => b.classList.toggle('selected', b.dataset.category === currentCategory));
+        }
+        if (state.timerTypeTime) {
+          timerTypeTime = state.timerTypeTime;
+          timerTypeButtons.forEach(b => b.classList.toggle('selected', parseInt(b.dataset.time) === timerTypeTime));
+        }
+        if (state.timerRunning && state.endTime) {
+          const remaining = Math.max(0, Math.round((state.endTime - Date.now()) / 1000));
+          timeLeft = remaining;
+          endTime = state.endTime;
+          if (remaining > 0) startTimer(true);
+          else { timeLeft = 0; updateDisplay(); }
+        } else {
+          timeLeft = state.timeLeft ?? timerTypeTime;
+          updateDisplay();
+        }
+        return true;
+      } catch (e) { return false; }
+    }
+
+    // ----- UI handlers -----
+    categoryButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        categoryButtons.forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        currentCategory = btn.dataset.category;
+        currentCategoryLabel.textContent = `Current category: ${currentCategory}`;
+        saveState();
+      });
+    });
+
+    timerTypeButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        timerTypeButtons.forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        timerTypeTime = parseInt(btn.dataset.time);
+        resetTimer();
+        saveState();
+      });
+    });
+
+    // ----- Formatting & display -----
+    function formatTime(seconds) {
+      const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+      const s = (seconds % 60).toString().padStart(2, '0');
+      return `${m}:${s}`;
+    }
+
+    function updateDisplay() {
+      timerDisplay.textContent = formatTime(timeLeft);
+      const pct = timerTypeTime > 0 ? (timeLeft / timerTypeTime) * 100 : 0;
+      progressBar.style.width = `${pct}%`;
+    }
+
+    // ----- Sound & notification -----
+    function playDing() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = 'sine';
+        o.frequency.value = 880;
+        g.gain.value = 0.001;
+        o.connect(g);
+        g.connect(ctx.destination);
+        o.start();
+        g.gain.exponentialRampToValueAtTime(0.5, ctx.currentTime + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.8);
+        o.stop(ctx.currentTime + 0.9);
+      } catch (e) { /* ignore */ }
+    }
+
+    async function notifyFinished() {
+      const title = "Study Timer";
+      const body = `Finished: ${currentCategory}`;
+      if (Notification.permission === 'granted') {
+        try { new Notification(title, { body }); } catch (e) { /* ignore */ }
+      }
+      playDing();
+    }
+
+    // ----- Timer control -----
+    function startTimer(resume=false) {
+      if (timerRunning) return;
+      timerRunning = true;
+      finishMessage.style.display = 'none';
+      if (!resume) {
+        endTime = Date.now() + timeLeft * 1000;
+      } else if (endTime && timeLeft > 0) {
+        // endTime already set from persisted state
+      } else {
+        endTime = Date.now() + timeLeft * 1000;
+      }
+      // request notification permission on first user gesture
+      if (Notification && Notification.permission === 'default') {
+        try { Notification.requestPermission(); } catch (e) { /* ignore */ }
+      }
+      saveState();
+      timerInterval = setInterval(() => {
+        if (endTime) {
+          const remaining = Math.max(0, Math.round((endTime - Date.now()) / 1000));
+          timeLeft = remaining;
+        } else {
+          if (timeLeft > 0) timeLeft--;
+        }
+        updateDisplay();
+        if (timeLeft <= 0) {
+          stopTimer();
+          finishMessage.style.display = 'block';
+          notifyFinished();
+          endTime = null;
+          saveState();
+        }
+      }, 1000);
+    }
+
+    function pauseTimer() {
+      if (!timerRunning) return;
+      clearInterval(timerInterval);
+      timerRunning = false;
+      // adjust timeLeft in case endTime exists
+      if (endTime) timeLeft = Math.max(0, Math.round((endTime - Date.now()) / 1000));
+      endTime = null;
+      saveState();
+    }
+
+    function resetTimer() {
+      clearInterval(timerInterval);
+      timerRunning = false;
+      endTime = null;
+      timeLeft = timerTypeTime;
+      updateDisplay();
+      finishMessage.style.display = 'none';
+      saveState();
+    }
+
+    function stopTimer() {
+      clearInterval(timerInterval);
+      timerRunning = false;
+    }
+
+    // ===== Control Buttons =====
+    document.getElementById('start-btn').addEventListener('click', () => startTimer());
+    document.getElementById('pause-btn').addEventListener('click', pauseTimer);
+    document.getElementById('reset-btn').addEventListener('click', resetTimer);
+
+    // Persist periodically in case tab closed
+    setInterval(saveState, 2000);
+    window.addEventListener('beforeunload', saveState);
+
+    // ----- Service worker registration -----
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(()=>{});
+    }
+
+    // ----- Load state and initial display -----
+    loadState();
+    if (!timerRunning) updateDisplay();
+  </script>
+</body>
+</html>

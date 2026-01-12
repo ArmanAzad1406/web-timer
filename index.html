@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Study Timer</title>
+  <meta name="theme-color" content="#f6d365">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="card">
+    <h1>Study Timer</h1>
+    <div class="help-text">Pick a category, then start the timer.</div>
+
+    <!-- Category Buttons -->
+    <div class="buttons-container" id="category-buttons">
+      <button data-category="Maths" class="selected">Maths</button>
+      <button data-category="English">English</button>
+      <button data-category="Science">Science</button>
+      <button data-category="History">History</button>
+      <button data-category="Other">Other</button>
+    </div>
+
+    <div class="category-label" id="current-category">Current category: Maths</div>
+
+    <!-- Timer Display -->
+    <div id="timer">25:00</div>
+
+    <div class="progress-bar-container">
+      <div class="progress-bar" id="progress-bar"></div>
+    </div>
+
+    <!-- Timer Type Buttons -->
+    <div class="buttons-container" id="timer-type-buttons">
+      <button data-time="1500" class="selected">Work</button>
+      <button data-time="300">Short break</button>
+      <button data-time="900">Long break</button>
+    </div>
+
+    <!-- Control Buttons -->
+    <div class="control-buttons">
+      <button id="start-btn">Start</button>
+      <button id="pause-btn">Pause</button>
+      <button id="reset-btn">Reset</button>
+    </div>
+
+    <!-- Finish Message -->
+    <div id="finish-message">Time’s up!</div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
